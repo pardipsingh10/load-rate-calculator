@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Load Rate Calc</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Load Rate">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#14171a">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='32' fill='%2314171a'/%3E%3Crect x='0' y='0' width='180' height='6' fill='%23ffb020'/%3E%3Ctext x='90' y='108' font-family='Courier New,monospace' font-size='70' font-weight='700' fill='%23ffb020' text-anchor='middle'%3E%24%3C/text%3E%3Ctext x='90' y='150' font-family='Arial,sans-serif' font-size='20' font-weight='700' fill='%23f4f1e8' text-anchor='middle' letter-spacing='2'%3ERATE%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='32' fill='%2314171a'/%3E%3Crect x='0' y='0' width='180' height='6' fill='%23ffb020'/%3E%3Ctext x='90' y='108' font-family='Courier New,monospace' font-size='70' font-weight='700' fill='%23ffb020' text-anchor='middle'%3E%24%3C/text%3E%3Ctext x='90' y='150' font-family='Arial,sans-serif' font-size='20' font-weight='700' fill='%23f4f1e8' text-anchor='middle' letter-spacing='2'%3ERATE%3C/text%3E%3C/svg%3E">
+<style>
+  :root{
+    --asphalt-950:#14171a;
+    --asphalt-900:#1b1f23;
+    --asphalt-800:#23282e;
+    --asphalt-700:#2e343b;
+    --line-hairline:#39404780;
+    --amber:#ffb020;
+    --amber-dim:#8a5c14;
+    --amber-glow:#ffb02022;
+    --green:#4fd67a;
+    --red:#ff5c5c;
+    --paper:#f4f1e8;
+    font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--asphalt-950);color:var(--paper);}
+  .wrap{max-width:900px;margin:0 auto;padding:28px 20px 60px;}
+
+  .masthead{display:flex;align-items:baseline;justify-content:space-between;border-bottom:2px solid var(--amber-dim);padding-bottom:14px;margin-bottom:24px;}
+  .masthead h1{font-size:20px;letter-spacing:.04em;text-transform:uppercase;margin:0;font-weight:700;color:var(--paper);}
+  .masthead .tag{font-size:11px;color:var(--amber);letter-spacing:.12em;text-transform:uppercase;font-family:'Courier New',monospace;}
+
+  .gauge-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:26px;}
+  .gauge{background:var(--asphalt-900);border:1px solid var(--line-hairline);border-radius:6px;padding:18px 20px;position:relative;overflow:hidden;}
+  .gauge::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--amber-dim),var(--amber));}
+  .gauge.profitgauge::before{background:linear-gradient(90deg,var(--green),#2a8a4c);}
+  .gauge.lossgauge::before{background:linear-gradient(90deg,var(--red),#8a2a2a);}
+  .gauge .label{font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:#9aa0a6;margin-bottom:6px;font-family:'Courier New',monospace;}
+  .gauge .value{font-family:'Courier New',monospace;font-size:34px;font-weight:700;color:var(--amber);line-height:1;}
+  .gauge .value small{font-size:15px;color:#9aa0a6;font-weight:400;margin-left:6px;}
+  .gauge .sub{font-size:12px;color:#9aa0a6;margin-top:6px;}
+  .gauge.profitgauge .value{color:var(--green);}
+  .gauge.lossgauge .value{color:var(--red);}
+
+  .section{background:var(--asphalt-900);border:1px solid var(--line-hairline);border-radius:6px;margin-bottom:16px;overflow:hidden;}
+  .section-head{display:flex;align-items:center;gap:10px;padding:12px 18px;background:var(--asphalt-800);border-bottom:1px solid var(--line-hairline);}
+  .section-head .num{font-family:'Courier New',monospace;color:var(--amber);font-size:12px;border:1px solid var(--amber-dim);border-radius:3px;padding:1px 6px;}
+  .section-head h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;margin:0;font-weight:600;color:var(--paper);}
+  .section-body{padding:16px 18px;display:grid;grid-template-columns:1fr 1fr;gap:14px 20px;}
+  @media(max-width:560px){.section-body{grid-template-columns:1fr;} .gauge-row{grid-template-columns:1fr;}}
+
+  .field{display:flex;flex-direction:column;gap:5px;}
+  .field label{font-size:12px;color:#b7bbc0;}
+  .field .hint{font-size:10.5px;color:#6c7178;}
+  .inputline{display:flex;align-items:center;background:var(--asphalt-800);border:1px solid var(--line-hairline);border-radius:4px;overflow:hidden;}
+  .inputline:focus-within{border-color:var(--amber-dim);box-shadow:0 0 0 1px var(--amber-glow);}
+  .inputline .prefix{padding:0 10px;font-size:13px;color:#9aa0a6;font-family:'Courier New',monospace;border-right:1px solid var(--line-hairline);align-self:stretch;display:flex;align-items:center;background:var(--asphalt-700);}
+  .inputline input, .inputline select{flex:1;min-width:0;background:transparent;border:0;outline:0;color:var(--paper);font-family:'Courier New',monospace;font-size:15px;padding:9px 10px;}
+  .inputline select{cursor:pointer;}
+  .inputline select option{background:var(--asphalt-800);color:var(--paper);}
+  .inputline .suffix{padding:0 10px;font-size:11px;color:#9aa0a6;white-space:nowrap;}
+  .inputline .unitselect{flex:0 0 auto;max-width:90px;border-left:1px solid var(--line-hairline);}
+
+  .rate-field .inputline{border-color:var(--amber-dim);}
+  .rate-field input{font-size:18px;color:var(--amber);}
+
+  .totals{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:16px 18px;}
+  @media(max-width:560px){.totals{grid-template-columns:1fr 1fr;}}
+  .stat{background:var(--asphalt-800);border-radius:4px;padding:12px 14px;border-left:3px solid var(--amber-dim);}
+  .stat.profitstat{border-left-color:var(--green);}
+  .stat.lossstat{border-left-color:var(--red);}
+  .stat .k{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#9aa0a6;margin-bottom:5px;}
+  .stat .v{font-family:'Courier New',monospace;font-size:18px;color:var(--paper);}
+
+  .breakdown{padding:0 18px 16px;}
+  .brow{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line-hairline);font-size:13px;}
+  .brow:last-child{border-bottom:none;font-weight:700;padding-top:10px;border-top:1px solid var(--amber-dim);margin-top:4px;}
+  .brow .k{color:#b7bbc0;}
+  .brow .v{font-family:'Courier New',monospace;color:var(--paper);}
+  .brow.rate .v{color:var(--amber);}
+  .brow.deduction .v{color:var(--red);}
+  .brow.profit .v{color:var(--green);}
+  .brow.loss .v{color:var(--red);}
+
+  .footnote{font-size:11px;color:#6c7178;text-align:center;margin-top:20px;line-height:1.6;}
+
+  .clear-btn{background:transparent;border:1px solid var(--amber-dim);color:var(--amber);font-size:12px;text-transform:uppercase;letter-spacing:.08em;padding:8px 16px;border-radius:4px;cursor:pointer;font-family:inherit;}
+  .clear-btn:hover{background:var(--amber-glow);}
+  .clear-btn:active{transform:scale(0.97);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="masthead">
+    <h1>Load Rate Calculator</h1>
+    <button id="clearAllBtn" class="clear-btn">Clear all</button>
+  </div>
+
+  <div class="gauge-row">
+    <div class="gauge" id="profitGauge">
+      <div class="label">Net profit on this load</div>
+      <div class="value" id="profitOut">$0<small></small></div>
+      <div class="sub" id="profitSub">Broker rate − broker fee − total expenses</div>
+    </div>
+    <div class="gauge">
+      <div class="label">Break-even rate</div>
+      <div class="value" id="rpmOut">$0.00<small>/ mi</small></div>
+      <div class="sub" id="rpmSub">Total cost ÷ distance</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-head"><span class="num">01</span><h2>Broker rate</h2></div>
+    <div class="section-body">
+      <div class="field rate-field">
+        <label>Load rate offered by broker</label>
+        <div class="inputline">
+          <span class="prefix">$</span>
+          <input type="number" id="brokerRate" placeholder="0" min="0" step="1">
+          <select id="rateCurrency" class="unitselect">
+            <option value="CAD">CAD</option>
+            <option value="USD">USD</option>
+          </select>
+        </div>
+      </div>
+      <div class="field" id="exchangeField" style="display:none;">
+        <label>Exchange rate (1 USD → CAD)</label>
+        <div class="inputline"><span class="prefix">$</span><input type="number" id="exchangeRate" placeholder="0.00" min="0" step="0.001"><span class="suffix">CAD</span></div>
+        <span class="hint">Check today's rate — converts your USD rate to CAD</span>
+      </div>
+      <div class="field">
+        <label>Broker fee</label>
+        <div class="inputline"><span class="prefix">%</span><input type="number" id="brokerFeePct" placeholder="0" min="0" max="100" step="0.1"><span class="suffix">deducted from rate</span></div>
+        <span class="hint">e.g. enter 10 for a 10% broker cut</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-head"><span class="num">02</span><h2>Trip &amp; fuel</h2></div>
+    <div class="section-body">
+      <div class="field">
+        <label>Distance unit</label>
+        <div class="inputline"><span class="prefix">↔</span>
+          <select id="distanceUnit">
+            <option value="mi">Miles</option>
+            <option value="km">Kilometers</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label id="distanceLabel">Loaded distance</label>
+        <div class="inputline"><span class="prefix">#</span><input type="number" id="distance" placeholder="0" min="0" step="1"><span class="suffix" id="distanceSuffix">mi</span></div>
+      </div>
+      <div class="field">
+        <label>Fuel average unit</label>
+        <div class="inputline"><span class="prefix">⛽</span>
+          <select id="fuelUnit">
+            <option value="mpg">Miles per gallon</option>
+            <option value="kml">Km per litre</option>
+          </select>
+        </div>
+      </div>
+      <div class="field" id="mpgField">
+        <label>Truck fuel average (MPG)</label>
+        <div class="inputline"><span class="prefix">MPG</span><input type="number" id="mpg" placeholder="0" min="0.1" step="0.1"><span class="suffix">mi / gal</span></div>
+      </div>
+      <div class="field" id="kmlField" style="display:none;">
+        <label>Truck fuel average (KM/L)</label>
+        <div class="inputline"><span class="prefix">KM/L</span><input type="number" id="kml" placeholder="0" min="0.1" step="0.05"><span class="suffix">km / litre</span></div>
+      </div>
+      <div class="field">
+        <label>Diesel cost</label>
+        <div class="inputline">
+          <span class="prefix">$</span>
+          <input type="number" id="dieselPrice" placeholder="0.00" min="0" step="0.01">
+          <select id="dieselUnit" class="unitselect">
+            <option value="litre">/ Litre</option>
+            <option value="gallon">/ Gallon</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>DEF burn cost on this trip</label>
+        <div class="inputline"><span class="prefix">$</span><input type="number" id="defCost" placeholder="0" min="0" step="1"><span class="suffix">total</span></div>
+      </div>
+      <div class="field">
+        <label>Reefer fuel cost on this trip</label>
+        <div class="inputline"><span class="prefix">$</span><input type="number" id="reeferCost" placeholder="0" min="0" step="1"><span class="suffix">total</span></div>
+        <span class="hint">Leave at 0 if not hauling reefer</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-head"><span class="num">03</span><h2>Fixed &amp; trip costs</h2></div>
+    <div class="section-body">
+      <div class="field">
+        <label>Plates &amp; insurance</label>
+        <div class="inputline"><span class="prefix">$</span><input type="number" id="insurance" placeholder="0" min="0" step="1"><span class="suffix">total</span></div>
+        <span class="hint">Flat amount you want to allocate to this load</span>
+      </div>
+      <div class="field">
+        <label>Maintenance</label>
+        <div class="inputline"><span class="prefix">$</span><input type="number" id="maintenance" placeholder="0" min="0" step="1"><span class="suffix">total</span></div>
+        <span class="hint">Maintenance cost for this trip</span>
+      </div>
+      <div class="field">
+        <label>Repair cost on road</label>
+        <div class="inputline"><span class="prefix">$</span><input type="number" id="roadRepair" placeholder="0" min="0" step="1"><span class="suffix">total</span></div>
+      </div>
+      <div class="field">
+        <label>Border crossing fee</label>
+        <div class="inputline"><span class="prefix">$</span><input type="number" id="borderFee" placeholder="0" min="0" step="1"><span class="suffix">total</span></div>
+      </div>
+      <div class="field">
+        <label>Rental trailer cost</label>
+        <div class="inputline"><span class="prefix">$</span><input type="number" id="trailerRental" placeholder="0" min="0" step="1"><span class="suffix">total</span></div>
+      </div>
+      <div class="field">
+        <label>Driver salary</label>
+        <div class="inputline">
+          <span class="prefix" id="driverSalaryPrefix">$</span>
+          <input type="number" id="driverSalary" placeholder="0" min="0" step="1">
+          <select id="driverSalaryUnit" class="unitselect">
+            <option value="amount">Amount</option>
+            <option value="percent">% of rate</option>
+          </select>
+        </div>
+        <span class="hint" id="driverSalaryHint">Flat dollar amount for this load</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-head"><span class="num">04</span><h2>Cost breakdown &amp; profit</h2></div>
+    <div class="breakdown" id="breakdown"></div>
+    <div class="totals">
+      <div class="stat"><div class="k">Total expenses</div><div class="v" id="totalCost">$0</div></div>
+      <div class="stat"><div class="k">Break-even rate</div><div class="v" id="breakEven">$0.00</div></div>
+      <div class="stat" id="profitMarginStat"><div class="k">Profit % of gross</div><div class="v" id="profitMarginPct">0%</div></div>
+      <div class="stat" id="profitPerMileStat"><div class="k">Profit per mile</div><div class="v" id="profitPerMile">$0.00</div></div>
+      <div class="stat" id="profitPerKmStat"><div class="k">Profit per km</div><div class="v" id="profitPerKm">$0.00</div></div>
+    </div>
+  </div>
+
+  <p class="footnote">All dollar figures are calculated in CAD. If you enter a USD broker rate, it's converted using the exchange rate you provide. Plates &amp; insurance and maintenance are flat totals you allocate to this load. Repairs, border fees, trailer rental, DEF, and reefer fuel are one-time totals for this trip.</p>
+
+</div>
+
+<script>
+function num(id){ const v = parseFloat(document.getElementById(id).value); return isNaN(v) ? 0 : v; }
+function money(n){ const sign = n < 0 ? '-' : ''; return sign + '$' + Math.abs(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+function moneyWhole(n){ const sign = n < 0 ? '-' : ''; return sign + '$' + Math.round(Math.abs(n)).toLocaleString('en-US'); }
+
+const LITRES_PER_GALLON = 3.78541;
+const KM_PER_MILE = 1.60934;
+
+const fuelUnitSel = document.getElementById('fuelUnit');
+fuelUnitSel.addEventListener('change', () => {
+  const isKml = fuelUnitSel.value === 'kml';
+  document.getElementById('kmlField').style.display = isKml ? 'flex' : 'none';
+  document.getElementById('mpgField').style.display = isKml ? 'none' : 'flex';
+  calc();
+});
+
+const rateCurrencySel = document.getElementById('rateCurrency');
+rateCurrencySel.addEventListener('change', () => {
+  document.getElementById('exchangeField').style.display = rateCurrencySel.value === 'USD' ? 'flex' : 'none';
+  calc();
+});
+
+const distanceUnitSel = document.getElementById('distanceUnit');
+distanceUnitSel.addEventListener('change', () => {
+  const isKm = distanceUnitSel.value === 'km';
+  document.getElementById('distanceLabel').textContent = isKm ? 'Loaded distance (KM)' : 'Loaded distance (Miles)';
+  document.getElementById('distanceSuffix').textContent = isKm ? 'km' : 'mi';
+  calc();
+});
+
+const driverSalaryUnitSel = document.getElementById('driverSalaryUnit');
+driverSalaryUnitSel.addEventListener('change', () => {
+  const isPercent = driverSalaryUnitSel.value === 'percent';
+  document.getElementById('driverSalaryPrefix').textContent = isPercent ? '%' : '$';
+  document.getElementById('driverSalaryHint').textContent = isPercent ? 'Percent of the net broker rate (after broker fee)' : 'Flat dollar amount for this load';
+  calc();
+});
+
+function calc(){
+  const distanceValue = num('distance');
+  const distanceUnit = distanceUnitSel.value;
+  const unitLabel = distanceUnit === 'km' ? 'km' : 'mi';
+
+  const milesTravelled = distanceUnit === 'km' ? distanceValue / KM_PER_MILE : distanceValue;
+  const kmTravelled = distanceUnit === 'km' ? distanceValue : distanceValue * KM_PER_MILE;
+
+  const dieselPriceEntered = num('dieselPrice');
+  const dieselUnit = document.getElementById('dieselUnit').value;
+  const dieselPerLitre = dieselUnit === 'gallon' ? dieselPriceEntered / LITRES_PER_GALLON : dieselPriceEntered;
+  const defCost = num('defCost');
+  const reeferCost = num('reeferCost');
+  const insuranceCost = num('insurance');
+  const maintenanceCost = num('maintenance');
+  const roadRepair = num('roadRepair');
+  const borderFee = num('borderFee');
+  const trailerRental = num('trailerRental');
+
+  const rawBrokerRate = num('brokerRate');
+  const rateCurrency = rateCurrencySel.value;
+  const exchangeRate = num('exchangeRate');
+  const brokerRateCAD = rateCurrency === 'USD' ? rawBrokerRate * exchangeRate : rawBrokerRate;
+
+  const brokerFeePct = num('brokerFeePct');
+  const brokerFeeAmount = brokerRateCAD * (brokerFeePct / 100);
+  const netRate = brokerRateCAD - brokerFeeAmount;
+
+  const driverSalaryValue = num('driverSalary');
+  const driverSalaryUnit = driverSalaryUnitSel.value;
+  const driverSalaryCost = driverSalaryUnit === 'percent' ? netRate * (driverSalaryValue / 100) : driverSalaryValue;
+
+  let litresUsed = 0;
+  let fuelSourceLabel = '';
+  const dieselDisplayPrice = dieselPriceEntered;
+  const dieselDisplayUnit = dieselUnit === 'gallon' ? '/gal' : '/L';
+  if(fuelUnitSel.value === 'kml'){
+    const kml = num('kml');
+    litresUsed = kml > 0 ? kmTravelled / kml : 0;
+    fuelSourceLabel = 'Fuel (' + litresUsed.toFixed(0) + ' L @ ' + money(dieselDisplayPrice) + dieselDisplayUnit + ', ' + kmTravelled.toFixed(0) + ' km)';
+  } else {
+    const mpg = num('mpg');
+    const gallonsUsed = mpg > 0 ? milesTravelled / mpg : 0;
+    litresUsed = gallonsUsed * LITRES_PER_GALLON;
+    fuelSourceLabel = 'Fuel (' + gallonsUsed.toFixed(1) + ' gal @ ' + money(dieselDisplayPrice) + dieselDisplayUnit + ')';
+  }
+  const fuelCost = litresUsed * dieselPerLitre;
+
+  const totalCost = fuelCost + defCost + reeferCost + insuranceCost + maintenanceCost + roadRepair + borderFee + trailerRental + driverSalaryCost;
+  const breakEvenRpm = distanceValue > 0 ? totalCost / distanceValue : 0;
+
+  const netProfit = netRate - totalCost;
+  const profitPerMileVal = milesTravelled > 0 ? netProfit / milesTravelled : 0;
+  const profitPerKmVal = kmTravelled > 0 ? netProfit / kmTravelled : 0;
+  const marginPct = brokerRateCAD > 0 ? (netProfit / brokerRateCAD) * 100 : 0;
+
+  const profitGaugeEl = document.getElementById('profitGauge');
+  profitGaugeEl.classList.remove('profitgauge','lossgauge');
+  profitGaugeEl.classList.add(netProfit >= 0 ? 'profitgauge' : 'lossgauge');
+  document.getElementById('profitOut').innerHTML = moneyWhole(netProfit) + ' CAD';
+  document.getElementById('profitSub').textContent = brokerRateCAD > 0
+    ? moneyWhole(netRate) + ' net rate − ' + moneyWhole(totalCost) + ' cost = ' + marginPct.toFixed(1) + '% margin'
+    : 'Enter a broker rate above to see profit';
+
+  document.getElementById('rpmOut').innerHTML = money(breakEvenRpm) + '<small>/ ' + unitLabel + '</small>';
+  document.getElementById('rpmSub').textContent = moneyWhole(totalCost) + ' total cost ÷ ' + distanceValue.toLocaleString() + ' ' + unitLabel;
+
+  document.getElementById('totalCost').textContent = moneyWhole(totalCost);
+  document.getElementById('breakEven').textContent = money(breakEvenRpm) + '/' + unitLabel;
+
+  const ppmStat = document.getElementById('profitPerMileStat');
+  ppmStat.classList.remove('profitstat','lossstat');
+  ppmStat.classList.add(netProfit >= 0 ? 'profitstat' : 'lossstat');
+  document.getElementById('profitPerMile').textContent = money(profitPerMileVal) + '/mi';
+
+  const ppkStat = document.getElementById('profitPerKmStat');
+  ppkStat.classList.remove('profitstat','lossstat');
+  ppkStat.classList.add(netProfit >= 0 ? 'profitstat' : 'lossstat');
+  document.getElementById('profitPerKm').textContent = money(profitPerKmVal) + '/km';
+
+  const marginStat = document.getElementById('profitMarginStat');
+  marginStat.classList.remove('profitstat','lossstat');
+  marginStat.classList.add(netProfit >= 0 ? 'profitstat' : 'lossstat');
+  document.getElementById('profitMarginPct').textContent = marginPct.toFixed(1) + '%';
+
+  const rows = [
+    [fuelSourceLabel, fuelCost],
+    ['DEF burn cost', defCost],
+    ['Reefer fuel cost', reeferCost],
+    ['Plates & insurance', insuranceCost],
+    ['Maintenance', maintenanceCost],
+    ['Repair on road', roadRepair],
+    ['Border crossing fee', borderFee],
+    ['Trailer rental', trailerRental],
+    ['Driver salary' + (driverSalaryUnit === 'percent' ? ' (' + driverSalaryValue + '% of net rate)' : ''), driverSalaryCost],
+    ['Total expenses', totalCost]
+  ];
+  let html = rows.map(r =>
+    '<div class="brow"><span class="k">'+r[0]+'</span><span class="v">'+moneyWhole(r[1])+'</span></div>'
+  ).join('');
+  if(rawBrokerRate > 0){
+    const rateLine = rateCurrency === 'USD'
+      ? 'Broker rate (' + moneyWhole(rawBrokerRate) + ' USD → ' + moneyWhole(brokerRateCAD) + ' CAD)'
+      : 'Broker rate';
+    html += '<div class="brow rate"><span class="k">'+rateLine+'</span><span class="v">'+moneyWhole(brokerRateCAD)+'</span></div>';
+    if(brokerFeePct > 0){
+      html += '<div class="brow deduction"><span class="k">Broker fee ('+brokerFeePct+'%)</span><span class="v">-'+moneyWhole(brokerFeeAmount)+'</span></div>';
+      html += '<div class="brow rate"><span class="k">Net rate after fee</span><span class="v">'+moneyWhole(netRate)+'</span></div>';
+    }
+    html += '<div class="brow '+(netProfit>=0?'profit':'loss')+'"><span class="k">Net profit</span><span class="v">'+moneyWhole(netProfit)+'</span></div>';
+  }
+  document.getElementById('breakdown').innerHTML = html;
+}
+
+document.querySelectorAll('input, select').forEach(el => el.addEventListener('input', calc));
+
+document.getElementById('clearAllBtn').addEventListener('click', () => {
+  document.querySelectorAll('input[type=number]').forEach(el => el.value = '');
+  document.getElementById('rateCurrency').value = 'CAD';
+  document.getElementById('distanceUnit').value = 'mi';
+  document.getElementById('fuelUnit').value = 'mpg';
+  document.getElementById('dieselUnit').value = 'litre';
+  document.getElementById('driverSalaryUnit').value = 'amount';
+
+  document.getElementById('exchangeField').style.display = 'none';
+  document.getElementById('mpgField').style.display = 'flex';
+  document.getElementById('kmlField').style.display = 'none';
+  document.getElementById('distanceLabel').textContent = 'Loaded distance (Miles)';
+  document.getElementById('distanceSuffix').textContent = 'mi';
+  document.getElementById('driverSalaryPrefix').textContent = '$';
+  document.getElementById('driverSalaryHint').textContent = 'Flat dollar amount for this load';
+
+  calc();
+});
+
+calc();
+</script>
+</body>
+</html>
